@@ -173,52 +173,6 @@ function printPage() {
     });
 }
 
-// https://developer.chrome.com/extensions/examples/extensions/catblock/background.js
-function catBlock() {
-    var loldogs: string[];
-    chrome.webRequest.onBeforeRequest.addListener(
-        function(info) {
-            console.log("Cat intercepted: " + info.url);
-            // Redirect the lolcat request to a random loldog URL.
-            var i = Math.round(Math.random() * loldogs.length);
-            return { redirectUrl: loldogs[i] };
-        },
-        // filters
-        {
-            urls: ["https://i.chzbgr.com/*"],
-            types: ["image"],
-        },
-        // extraInfoSpec
-        ["blocking"],
-    );
-}
-
-// webNavigation.onSendHeaders.addListener example
-function webRequestAddListenerMandatoryFilters() {
-    // @ts-expect-error
-    chrome.webRequest.onBeforeRequest.addListener(info => {});
-
-    chrome.webRequest.onSendHeaders.addListener(details => {
-        console.log(
-            (details.requestHeaders ?? [])[0].name,
-            details.documentId,
-            details.documentLifecycle,
-            details.frameType,
-            details.frameId,
-            details.initiator,
-            details.parentDocumentId,
-            details.parentFrameId,
-            details.requestId,
-            details.tabId,
-            details.timeStamp,
-            details.type,
-            details.url,
-        );
-    }, {
-        urls: ["<all_urls>"],
-    }, ["requestHeaders"]);
-}
-
 // webNavigation.onBeforeNavigate.addListener example
 function beforeRedditNavigation() {
     chrome.webNavigation.onBeforeNavigate.addListener(
@@ -286,22 +240,6 @@ function executeScriptFramed() {
 
     chrome.tabs.executeScript(tabId, { frameId, code });
     chrome.tabs.insertCSS(tabId, { frameId, code });
-}
-
-// for chrome.tabs.TAB_ID_NONE
-function realTabsOnly() {
-    chrome.webRequest.onBeforeRequest.addListener(
-        function(details) {
-            if (details.tabId === chrome.tabs.TAB_ID_NONE) {
-                console.log("Request not related to a tab. %o", details);
-                return;
-            }
-            // ...
-        },
-        {
-            urls: ["<all_urls>"],
-        },
-    );
 }
 
 // https://developer.chrome.com/docs/extensions/reference/api/proxy
@@ -2020,8 +1958,8 @@ function testContextMenusCreate() {
 }
 
 function testContextMenusRemove() {
-    chrome.contextMenus.remove(1);
-    chrome.contextMenus.remove(1, () => console.log("removed"));
+    chrome.contextMenus.remove(1); // $ExpectType Promise<void>
+    chrome.contextMenus.remove(1, () => console.log("removed")); // $ExpectType void
     // @ts-expect-error
     chrome.contextMenus.remove(1, (invalid: any) => console.log("removed"));
     chrome.contextMenus.remove("dummy-id");
@@ -2032,15 +1970,15 @@ function testContextMenusRemove() {
 }
 
 function testContextMenusRemoveAll() {
-    chrome.contextMenus.removeAll();
-    chrome.contextMenus.removeAll(() => console.log("removed all"));
+    chrome.contextMenus.removeAll(); // $ExpectType Promise<void>
+    chrome.contextMenus.removeAll(() => console.log("removed all")); // $ExpectType void
     // @ts-expect-error
     chrome.contextMenus.removeAll((invalid: any) => console.log("removed"));
 }
 
 function testContextMenusUpdate() {
-    chrome.contextMenus.update(1, { title: "Hello World!" });
-    chrome.contextMenus.update(1, { title: "Hello World!" }, () => console.log("updated"));
+    chrome.contextMenus.update(1, { title: "Hello World!" }); // $ExpectType Promise<void>
+    chrome.contextMenus.update(1, { title: "Hello World!" }, () => console.log("updated")); // $ExpectType void
     chrome.contextMenus.update(Math.random() > 0.5 ? "1" : 1, { title: "Hello World!" }, () => console.log("updated"));
     // @ts-expect-error
     chrome.contextMenus.update(1, { title: "Hello World!" }, (invalid: any) => console.log("updated"));
@@ -2830,6 +2768,171 @@ function testPrintingMetrics() {
     chrome.printingMetrics.onPrintJobFinished.hasListeners();
 }
 
+// https://developer.chrome.com/docs/extensions/reference/api/webRequest
+function testWebRequest() {
+    const filter: chrome.webRequest.RequestFilter = {
+        tabId: 1,
+        urls: ["https://example.com/*"],
+        types: ["main_frame"],
+        windowId: 2,
+    };
+    const extraInfoSpec = ["extraHeaders"];
+
+    const blockingResponse = {
+        cancel: true,
+        redirectUrl: "https://example.com",
+        requestHeaders: [{ name: "name", value: "value" }],
+    };
+
+    chrome.webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES === 20;
+
+    chrome.webRequest.handlerBehaviorChanged(() => {}); // $ExpectType void
+    chrome.webRequest.handlerBehaviorChanged(); // $ExpectType Promise<void>
+    // @ts-expect-error
+    chrome.webRequest.handlerBehaviorChanged(() => {}).then(() => {});
+
+    chrome.webRequest.onAuthRequired.addListener(
+        ({ frameId }, asyncCallback) => {
+            frameId; // $ExpectType number
+            if (!asyncCallback) return;
+            asyncCallback(blockingResponse); // $ExpectType void
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onAuthRequired.removeListener(({ frameId }, asyncCallback) => {
+        frameId; // $ExpectType number
+        if (!asyncCallback) return;
+        asyncCallback(blockingResponse); // $ExpectType void
+    });
+    chrome.webRequest.onAuthRequired.hasListener(({ frameId }, asyncCallback) => {
+        frameId; // $ExpectType number
+        if (!asyncCallback) return;
+        asyncCallback(blockingResponse); // $ExpectType void
+    });
+    chrome.webRequest.onAuthRequired.hasListeners();
+
+    chrome.webRequest.onBeforeRedirect.addListener(
+        ({ frameId }) => {
+            frameId; // $ExpectType number
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onBeforeRedirect.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeRedirect.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeRedirect.hasListeners();
+
+    chrome.webRequest.onBeforeRequest.addListener(
+        ({ frameId }) => {
+            frameId; // $ExpectType number
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onBeforeRequest.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeRequest.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeRequest.hasListeners();
+
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+        (details) => {
+            details; // $ExpectType WebRequestHeadersDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onBeforeSendHeaders.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeSendHeaders.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onBeforeSendHeaders.hasListeners();
+
+    chrome.webRequest.onCompleted.addListener(
+        (details) => {
+            details; // $ExpectType WebResponseCacheDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onCompleted.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onCompleted.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onCompleted.hasListeners();
+
+    chrome.webRequest.onErrorOccurred.addListener(
+        (details) => {
+            details; // $ExpectType WebResponseErrorDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onErrorOccurred.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onErrorOccurred.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onErrorOccurred.hasListeners();
+
+    chrome.webRequest.onHeadersReceived.addListener(
+        (details) => {
+            details; // $ExpectType WebResponseHeadersDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onHeadersReceived.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onHeadersReceived.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onHeadersReceived.hasListeners();
+
+    chrome.webRequest.onResponseStarted.addListener(
+        (details) => {
+            details; // $ExpectType WebResponseCacheDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onResponseStarted.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onResponseStarted.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onResponseStarted.hasListeners();
+
+    chrome.webRequest.onSendHeaders.addListener(
+        (details) => {
+            details; // $ExpectType WebRequestHeadersDetails
+        },
+        filter,
+        extraInfoSpec,
+    );
+    chrome.webRequest.onSendHeaders.removeListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onSendHeaders.hasListener(({ frameId }) => {
+        frameId; // $ExpectType number
+    });
+    chrome.webRequest.onSendHeaders.hasListeners();
+}
+
 // https://developer.chrome.com/docs/extensions/reference/api/accessibilityFeatures
 function testAccessibilityFeatures() {
     // animationPolicy
@@ -3302,6 +3405,11 @@ function testAccessibilityFeatures() {
 
 // https://developer.chrome.com/docs/extensions/reference/api/privacy
 function testPrivacy() {
+    chrome.privacy.IPHandlingPolicy.DEFAULT === "default";
+    chrome.privacy.IPHandlingPolicy.DEFAULT_PUBLIC_AND_PRIVATE_INTERFACES === "default_public_and_private_interfaces";
+    chrome.privacy.IPHandlingPolicy.DEFAULT_PUBLIC_INTERFACE_ONLY === "default_public_interface_only";
+    chrome.privacy.IPHandlingPolicy.DISABLE_NON_PROXIED_UDP === "disable_non_proxied_udp";
+
     // virtualKeyboard
     chrome.privacy.services.alternateErrorPagesEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
     chrome.privacy.services.alternateErrorPagesEnabled.get({ incognito: false }, (details) => { // $ExpectType void
@@ -3624,13 +3732,17 @@ function testPrivacy() {
     chrome.privacy.network.networkPredictionEnabled.onChange.hasListeners(); // $ExpectType boolean
 
     // webRTCIPHandlingPolicy
-    chrome.privacy.network.webRTCIPHandlingPolicy.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<IPHandlingPolicy>>
+    chrome.privacy.network.webRTCIPHandlingPolicy.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<"default" | "default_public_and_private_interfaces" | "default_public_interface_only" | "disable_non_proxied_udp">>
     chrome.privacy.network.webRTCIPHandlingPolicy.get({ incognito: false }, (details) => { // $ExpectType void
-        details; // $ExpectType ChromeSettingGetResult<IPHandlingPolicy>
+        details; // $ExpectType ChromeSettingGetResult<"default" | "default_public_and_private_interfaces" | "default_public_interface_only" | "disable_non_proxied_udp">
     });
     // @ts-expect-error
     chrome.privacy.network.webRTCIPHandlingPolicy.get({}, () => {}).then(() => {});
 
+    chrome.privacy.network.webRTCIPHandlingPolicy.set({ // $ExpectType Promise<void>
+        value: chrome.privacy.IPHandlingPolicy.DEFAULT,
+        scope: "regular",
+    });
     chrome.privacy.network.webRTCIPHandlingPolicy.set({ value: "default", scope: "regular" }); // $ExpectType Promise<void>
     chrome.privacy.network.webRTCIPHandlingPolicy.set({ value: "default", scope: "regular" }, () => {}); // $ExpectType void
     // @ts-expect-error
@@ -3642,15 +3754,44 @@ function testPrivacy() {
     chrome.privacy.network.webRTCIPHandlingPolicy.clear({ scope: "regular" }, () => {}).then(() => {});
 
     chrome.privacy.network.webRTCIPHandlingPolicy.onChange.addListener(details => {
-        details; // $ExpectType ChromeSettingOnChangeDetails<IPHandlingPolicy>
+        details; // $ExpectType ChromeSettingOnChangeDetails<"default" | "default_public_and_private_interfaces" | "default_public_interface_only" | "disable_non_proxied_udp">
     });
     chrome.privacy.network.webRTCIPHandlingPolicy.onChange.removeListener(details => {
-        details; // $ExpectType ChromeSettingOnChangeDetails<IPHandlingPolicy>
+        details; // $ExpectType ChromeSettingOnChangeDetails<"default" | "default_public_and_private_interfaces" | "default_public_interface_only" | "disable_non_proxied_udp">
     });
     chrome.privacy.network.webRTCIPHandlingPolicy.onChange.hasListener(details => {
-        details; // $ExpectType ChromeSettingOnChangeDetails<IPHandlingPolicy>
+        details; // $ExpectType ChromeSettingOnChangeDetails<"default" | "default_public_and_private_interfaces" | "default_public_interface_only" | "disable_non_proxied_udp">
     });
     chrome.privacy.network.webRTCIPHandlingPolicy.onChange.hasListeners(); // $ExpectType boolean
+
+    // adMeasurementEnabled
+    chrome.privacy.websites.adMeasurementEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
+    chrome.privacy.websites.adMeasurementEnabled.get({ incognito: false }, (details) => { // $ExpectType void
+        details; // $ExpectType ChromeSettingGetResult<boolean>
+    });
+    // @ts-expect-error
+    chrome.privacy.websites.adMeasurementEnabled.get({}, () => {}).then(() => {});
+
+    chrome.privacy.websites.adMeasurementEnabled.set({ value: true, scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.adMeasurementEnabled.set({ value: true, scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.adMeasurementEnabled.set({ value: true, scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.adMeasurementEnabled.clear({ scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.adMeasurementEnabled.clear({ scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.adMeasurementEnabled.clear({ scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.adMeasurementEnabled.onChange.addListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.adMeasurementEnabled.onChange.removeListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.adMeasurementEnabled.onChange.hasListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.adMeasurementEnabled.onChange.hasListeners(); // $ExpectType boolean
 
     // doNotTrackEnabled
     chrome.privacy.websites.doNotTrackEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
@@ -3680,6 +3821,35 @@ function testPrivacy() {
         details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
     });
     chrome.privacy.websites.doNotTrackEnabled.onChange.hasListeners(); // $ExpectType boolean
+
+    // fledgeEnabled
+    chrome.privacy.websites.fledgeEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
+    chrome.privacy.websites.fledgeEnabled.get({ incognito: false }, (details) => { // $ExpectType void
+        details; // $ExpectType ChromeSettingGetResult<boolean>
+    });
+    // @ts-expect-error
+    chrome.privacy.websites.fledgeEnabled.get({}, () => {}).then(() => {});
+
+    chrome.privacy.websites.fledgeEnabled.set({ value: true, scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.fledgeEnabled.set({ value: true, scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.fledgeEnabled.set({ value: true, scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.fledgeEnabled.clear({ scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.fledgeEnabled.clear({ scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.fledgeEnabled.clear({ scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.fledgeEnabled.onChange.addListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.fledgeEnabled.onChange.removeListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.fledgeEnabled.onChange.hasListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.fledgeEnabled.onChange.hasListeners(); // $ExpectType boolean
 
     // hyperlinkAuditingEnabled
     chrome.privacy.websites.hyperlinkAuditingEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
@@ -3768,6 +3938,35 @@ function testPrivacy() {
     });
     chrome.privacy.websites.referrersEnabled.onChange.hasListeners(); // $ExpectType boolean
 
+    // relatedWebsiteSetsEnabled
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.get({ incognito: false }, (details) => { // $ExpectType void
+        details; // $ExpectType ChromeSettingGetResult<boolean>
+    });
+    // @ts-expect-error
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.get({}, () => {}).then(() => {});
+
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.set({ value: true, scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.set({ value: true, scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.set({ value: true, scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.clear({ scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.clear({ scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.clear({ scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.onChange.addListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.onChange.removeListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.onChange.hasListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.relatedWebsiteSetsEnabled.onChange.hasListeners(); // $ExpectType boolean
+
     // thirdPartyCookiesAllowed
     chrome.privacy.websites.thirdPartyCookiesAllowed.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
     chrome.privacy.websites.thirdPartyCookiesAllowed.get({ incognito: false }, (details) => { // $ExpectType void
@@ -3796,4 +3995,33 @@ function testPrivacy() {
         details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
     });
     chrome.privacy.websites.thirdPartyCookiesAllowed.onChange.hasListeners(); // $ExpectType boolean
+
+    // topicsEnabled
+    chrome.privacy.websites.topicsEnabled.get({ incognito: false }); // $ExpectType Promise<ChromeSettingGetResult<boolean>>
+    chrome.privacy.websites.topicsEnabled.get({ incognito: false }, (details) => { // $ExpectType void
+        details; // $ExpectType ChromeSettingGetResult<boolean>
+    });
+    // @ts-expect-error
+    chrome.privacy.websites.topicsEnabled.get({}, () => {}).then(() => {});
+
+    chrome.privacy.websites.topicsEnabled.set({ value: true, scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.topicsEnabled.set({ value: true, scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.topicsEnabled.set({ value: true, scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.topicsEnabled.clear({ scope: "regular" }); // $ExpectType Promise<void>
+    chrome.privacy.websites.topicsEnabled.clear({ scope: "regular" }, () => {}); // $ExpectType void
+    // @ts-expect-error
+    chrome.privacy.websites.topicsEnabled.clear({ scope: "regular" }, () => {}).then(() => {});
+
+    chrome.privacy.websites.topicsEnabled.onChange.addListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.topicsEnabled.onChange.removeListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.topicsEnabled.onChange.hasListener(details => {
+        details; // $ExpectType ChromeSettingOnChangeDetails<boolean>
+    });
+    chrome.privacy.websites.topicsEnabled.onChange.hasListeners(); // $ExpectType boolean
 }
